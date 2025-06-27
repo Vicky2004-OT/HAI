@@ -1,29 +1,39 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
 
-# Load your Google API key securely
-import os
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+# Load your OpenRouter API key from Streamlit secrets
+API_KEY = st.secrets["OPENROUTER_API_KEY"]
 
-# Title
+# Set page config
 st.set_page_config(page_title="HealthAI", layout="wide")
 st.title("🏥 HealthAI")
-st.markdown("*AI-powered health assistant using Google Gemini*")
+st.markdown("*AI-powered health assistant using OpenRouter (Mixtral)*")
 
-# Tabs for functionalities
+# Function to send prompts to OpenRouter API
+def query_openrouter(prompt):
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "mistralai/mixtral-8x7b-instruct",  # You can swap with other models like LLaMA3
+        "messages": [
+            {"role": "system", "content": "You are a helpful, medically accurate AI health assistant."},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+
+    if response.status_code == 200:
+        return response.json()['choices'][0]['message']['content']
+    else:
+        return f"❌ Error {response.status_code}: {response.text}"
+
+# Streamlit tabs
 tab1, tab2, tab3 = st.tabs(["💬 Patient Chat", "🩺 Disease Prediction", "📝 Treatment Plan"])
 
-# Helper function to query Gemini
-def query_gemini(prompt):
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"❌ Error: {str(e)}"
-
-# --- Tab 1: Patient Chat ---
+# Tab 1: Patient Chat
 with tab1:
     st.subheader("Ask a health-related question")
     question = st.text_area("Your Question", placeholder="e.g., What should I do if I have chest pain?")
@@ -32,10 +42,9 @@ with tab1:
             st.warning("Please enter a valid question.")
         else:
             prompt = f"A patient asked: '{question}'. Provide a medically accurate, clear, and empathetic answer."
-            response = query_gemini(prompt)
-            st.success(response)
+            st.success(query_openrouter(prompt))
 
-# --- Tab 2: Disease Prediction ---
+# Tab 2: Disease Prediction
 with tab2:
     st.subheader("Predict Disease Based on Symptoms")
     symptoms = st.text_area("Enter Symptoms", placeholder="e.g., fever, headache, nausea")
@@ -44,10 +53,9 @@ with tab2:
             st.warning("Please enter valid symptoms.")
         else:
             prompt = f"Symptoms reported: {symptoms}. Predict possible diseases or conditions with confidence levels."
-            response = query_gemini(prompt)
-            st.info(response)
+            st.info(query_openrouter(prompt))
 
-# --- Tab 3: Treatment Plan ---
+# Tab 3: Treatment Plan
 with tab3:
     st.subheader("Get a Treatment Plan for a Condition")
     condition = st.text_input("Condition", placeholder="e.g., Diabetes")
@@ -56,5 +64,4 @@ with tab3:
             st.warning("Please enter a valid condition.")
         else:
             prompt = f"Condition: {condition}. Suggest a detailed treatment plan including medications, lifestyle modifications, and follow-up actions."
-            response = query_gemini(prompt)
-            st.success(response)
+            st.success(query_openrouter(prompt))
